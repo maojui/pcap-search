@@ -1,5 +1,5 @@
 FROM ubuntu:16.04
-RUN sed -i 's/archive.ubuntu.com/ftp.sjtu.edu.cn/g' /etc/apt/sources.list
+RUN sed -i "s/archive.ubuntu.com/tw.archive.ubuntu.com/g" /etc/apt/sources.list
 RUN apt-get update && apt-get install -y \
     python2.7 python2.7-dev python-pip\
     libpcap-dev \
