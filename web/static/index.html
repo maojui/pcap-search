@@ -263,9 +263,16 @@
           apiSettings: {
             url:"/api/autocomplete?q={query}&service={service}",
             onResponse:function(response){
+             function escapeOutput(toOutput){
+                 return toOutput.replace(/\&/g, '&amp;')
+                                .replace(/\</g, '&lt;')
+                                .replace(/\>/g, '&gt;')
+                                .replace(/\"/g, '&quot;')
+                                .replace(/\'/g, '&#x27');
+                }
               var ret = {
                 results: response.suggestions.map(function(x){
-                  return {title: x}
+                  return {title: escapeOutput(x), raw_title:x}
                 })
               }
               return ret
@@ -278,7 +285,7 @@
 
           },
           onSelect: function(e){
-            this.search(e.title)
+            this.search(e.raw_title)
           }.bind(this)
         })
         // init the tab and the modal
