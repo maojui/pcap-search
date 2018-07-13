@@ -159,11 +159,11 @@ def attack(host, port):
     for c, s in seq:
         if c == 0:
             data = r.recvrepeat(1)
-            print("\033[33m" + repr(data) + "\033[0m")
+            print("\033[33m{}\033[0m").format(repr(data))
         else:
-            print("\033[36m" + repr(s) + "\033[0m")
+            print("\033[36m{}\033[0m").format(repr(s))
             r.send(s)
-    # r.interactive()
+    #r.interactive()
     return r.recvall()
 
 if __name__ == '__main__':
