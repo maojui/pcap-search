@@ -124,7 +124,7 @@ def out_begin_pythonsimple(*args):
     print >>_out_file, '#-*- coding:utf-8 -*-'
     print >>_out_file, r"""
 import os, sys, string, random
-from zio import *
+from pwn import *
 try:
     from termcolor import colored
 except:
@@ -155,14 +155,16 @@ def out_end_pythonsimple(*args):
     print >>_out_file, "colors = ['yellow', 'cyan']"
     print >>_out_file, r"""
 def attack(host, port):
-    io = zio((host, port), print_read=COLORED(REPR, 'yellow'), print_write=COLORED(REPR, 'cyan'), timeout=40)
+    r = remote(host, port)
     for c, s in seq:
         if c == 0:
-            io.read_until_timeout(1)
+            data = r.recvrepeat(1)
+            print ("\033[33m" + repr(data) + "\033[0m")
         else:
-            io.write(s)
-    # io.interact()
-    return io.read()
+            print ("\033[36m" + repr(s) + "\033[0m")
+            r.send(s)
+    # r.interactive()
+    return r.recv(0x1000)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -200,9 +202,9 @@ def out_begin_pythondiff(*args):
     _out_file = open(sys.argv[5], 'wb')
     print >>_out_file, '#!/usr/bin/env python2'
     print >>_out_file, '#-*- coding:utf-8 -*-'
-    print >>_out_file, 'import zio'
+    print >>_out_file, 'from pwn import *'
     print >>_out_file, 'import sys'
-    print >>_out_file, 'timeout = 0.5'
+    print >>_out_file, 'timeout = 0.2'
     print >>_out_file, r"""
 try:
     from termcolor import colored
@@ -241,25 +243,28 @@ except:
     print >>_out_file, '                sys.stdout.write(colored(text, on_color="on_blue"))'
     print >>_out_file, '        sys.stdout.write("\\n")'
     print >>_out_file, '        sys.stdout.flush()'
-    print >>_out_file, 'z = zio.zio((sys.argv[1], int(sys.argv[2])), print_read=zio.COLORED(zio.REPR, "cyan"), print_write=zio.COLORED(zio.REPR, "green"))'
+    print >>_out_file, 'r = remote(sys.argv[1], int(sys.argv[2]))'
     print >>_out_file, '__content = ""'
 
 
 def out_end_pythondiff(*args):
     print >>_out_file, 'if len(sys.argv) >= 4 and "r" in sys.argv[3]:'
-    print >>_out_file, '    z.read_until_timeout(1)'
+    print >>_out_file, '    data = r.recvrepeat(1)'
+    print >>_out_file, '    print ("\\033[33m%s\\033[0m" % repr(data) )'
     print >>_out_file, 'if len(sys.argv) >= 4 and "i" in sys.argv[3]:'
-    print >>_out_file, '    z.interact()'
+    print >>_out_file, '    r.interactive()'
     if _out_file != sys.stdout:
         _out_file.close()
 
 def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
     if direction == 'cs':
-        print >>_out_file, "z.write(%s)" % (repr(data))
+        print >>_out_file, 'print "\\033[36m%s\\033[0m"' % repr(data) 
+        print >>_out_file, 'r.send(%s)' % (repr(data))
     else:
-        print >>_out_file, "__content = z.read_until_timeout(timeout = timeout)"
-        print >>_out_file, "__expected =  %s" % (repr(data))
-        print >>_out_file, "diffstr(__content, __expected)"
+        print >>_out_file, '__content = r.recvrepeat(timeout = timeout)'
+        print >>_out_file, 'print "\\033[33m%s\\033[0m" % repr(__content)'
+        print >>_out_file, '__expected =  %s' % (repr(data))
+        print >>_out_file, 'diffstr(__content, __expected)'
 
 
 def out_begin_pcap(_pkts, timestamp, *args):
