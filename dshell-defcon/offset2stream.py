@@ -155,16 +155,16 @@ def out_end_pythonsimple(*args):
     print >>_out_file, "colors = ['yellow', 'cyan']"
     print >>_out_file, r"""
 def attack(host, port):
-    r = remote(host, port)
+    r = remote(host, port, timeout=40)
     for c, s in seq:
         if c == 0:
             data = r.recvrepeat(1)
-            print ("\033[33m" + repr(data) + "\033[0m")
+            print("\033[33m" + repr(data) + "\033[0m")
         else:
-            print ("\033[36m" + repr(s) + "\033[0m")
+            print("\033[36m" + repr(s) + "\033[0m")
             r.send(s)
     # r.interactive()
-    return r.recv(0x1000)
+    return r.recvall()
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -250,7 +250,7 @@ except:
 def out_end_pythondiff(*args):
     print >>_out_file, 'if len(sys.argv) >= 4 and "r" in sys.argv[3]:'
     print >>_out_file, '    data = r.recvrepeat(1)'
-    print >>_out_file, '    print ("\\033[33m%s\\033[0m" % repr(data) )'
+    print >>_out_file, '    print ("\\033[33m{}\\033[0m".format(repr(data)) )'
     print >>_out_file, 'if len(sys.argv) >= 4 and "i" in sys.argv[3]:'
     print >>_out_file, '    r.interactive()'
     if _out_file != sys.stdout:
@@ -258,12 +258,11 @@ def out_end_pythondiff(*args):
 
 def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
     if direction == 'cs':
-        print >>_out_file, 'print "\\033[36m%s\\033[0m"' % repr(data) 
-        print >>_out_file, 'r.send(%s)' % (repr(data))
+        print >>_out_file, 'print("\\033[36m{}\\033[0m")'.format(repr(data))
+        print >>_out_file, 'r.send({})'.format((repr(data)))
     else:
         print >>_out_file, '__content = r.recvrepeat(timeout = timeout)'
-        print >>_out_file, 'print "\\033[33m%s\\033[0m" % repr(__content)'
-        print >>_out_file, '__expected =  %s' % (repr(data))
+        print >>_out_file, '__expected =  {}'.format(repr(data))
         print >>_out_file, 'diffstr(__content, __expected)'
 
 
