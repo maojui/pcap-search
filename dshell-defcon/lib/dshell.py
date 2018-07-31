@@ -380,7 +380,6 @@ class Decoder(object):
         # has tracking been stopped?
         if conn.stop:
             return False
-
         if data:
             # forward or reverse direction?
             if addr == conn.addr:
@@ -425,6 +424,7 @@ class Decoder(object):
                 raise Exception('packet truncated', pktlen, pktdata)
             # decode with the L2 decoder (probably Ether)
             pkt = self.l2decoder(pktdata)
+            
             # strip any intermediate layers (PPPoE, etc)
             for _ in xrange(int(self.striplayers)):
                 pkt = pkt.data
@@ -701,33 +701,52 @@ class TCPDecoder(UDPDecoder):
         self.count += 1
 
         try:
-            # close connection
-            if tcp.flags & (dpkt.tcp.TH_FIN | dpkt.tcp.TH_RST):
-                conn = self.find(addr)
-                if conn:
-                    # we might occasionally have data in a FIN packet
-                    self.track(addr, str(tcp.data), ts, offset=tcp.seq)
-                    self.close(conn, ts)
-            # init connection, set TCP ISN
-            elif not self.ignore_handshake and tcp.flags == dpkt.tcp.TH_SYN:
-                conn = self.track(addr, ts=ts, state='init', **kwargs)
-                if conn:
-                    conn.nextoffset['cs'] = tcp.seq + 1
-            # SYN ACK
-            elif not self.ignore_handshake and tcp.flags == (dpkt.tcp.TH_SYN | dpkt.tcp.TH_ACK):
-                conn = self.find(addr, state='init')
-                if conn and tcp.ack == conn.nextoffset['cs']:
-                    conn.nextoffset['sc'] = tcp.seq + 1
-                    conn.state = 'established'
+            # attempt to find an existing connection for this address
+            conn = self.find(addr)
 
-            # all other states, or always if ignoring handshake
-            if self.ignore_handshake or self.find(addr, state='established'):
+            if self.ignore_handshake:
+                # if we are ignoring handshakes, we will track all connections,
+                # even if we did not see the initialization handshake.
+                if not conn:
+                    conn = self.track(addr, ts=ts, state='init', **kwargs)
+                # align the sequence numbers when we first see a connection
+                if conn.nextoffset['cs'] is None and addr == conn.addr:
+                    conn.nextoffset['cs'] = tcp.seq + 1
+                elif conn.nextoffset['sc'] is None and addr != conn.addr:
+                    conn.nextoffset['sc'] = tcp.seq + 1
                 self.track(addr, str(tcp.data), ts,
-                           state='established', offset=tcp.seq, **kwargs)
+                    state='established', offset=tcp.seq, **kwargs)
+
+            else:
+                # otherwise, only track connections if we see a TCP handshake
+                if (tcp.flags == dpkt.tcp.TH_SYN
+                    or tcp.flags == dpkt.tcp.TH_SYN | dpkt.tcp.TH_CWR | dpkt.tcp.TH_ECE):
+                    # SYN
+                    if conn:
+                        # if a connection already exists for the addr,
+                        # close the old one to start fresh
+                        self.close(conn, ts)
+                    conn = self.track(addr, ts=ts, state='init', **kwargs)
+                    if conn:
+                        conn.nextoffset['cs'] = tcp.seq + 1
+                elif tcp.flags == (dpkt.tcp.TH_SYN | dpkt.tcp.TH_ACK):
+                    # SYN ACK
+                    if conn and tcp.ack == conn.nextoffset['cs']:
+                        conn.nextoffset['sc'] = tcp.seq + 1
+                        conn.state = 'established'
+                if conn and conn.state == 'established':
+                    self.track(addr, str(tcp.data), ts,
+                        state='established', offset=tcp.seq, **kwargs)
+
+            # close connection
+            if conn and tcp.flags & (dpkt.tcp.TH_FIN | dpkt.tcp.TH_RST):
+                # flag that an IP is closing a connection with FIN or RST
+                conn.closeIP(addr[0])
+            if conn and conn.connectionClosed():
+                self.close(conn, ts)
 
         except Exception, e:
             self._exc(e)
-
 
 class TCP6Decoder(TCPDecoder):
     pass
@@ -880,6 +899,8 @@ class Connection(Packet):
         self.serverpackets = 0
         self.clientbytes = 0
         self.serverbytes = 0
+        self.clientclosed = False
+        self.serverclosed = False
         self.starttime = self.ts        # datetime Obj containing start time
         self.endtime = self.ts
         # first update will change this, creating first blob
@@ -909,6 +930,18 @@ class Connection(Packet):
             self.serverbytes,
             (util.mktime(self.endtime) - util.mktime(self.starttime)),
             self.state)
+    def connectionClosed(self):
+        return self.serverclosed and self.clientclosed
+
+    def closeIP(self, tuple):
+        '''
+            Track if we have seen a FIN packet from given tuple
+            tuple should be of form (ip, port)
+        '''
+        if tuple == (self.clientip, self.clientport):
+            self.clientclosed = True
+        if tuple == (self.serverip, self.serverport):
+            self.serverclosed = True
 
     def update(self, ts, direction, data, offset=None):
         # if we have no blobs or direction changes, start a new blob

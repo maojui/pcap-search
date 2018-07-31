@@ -85,7 +85,6 @@ Example:
     def connectionHandler(self, connection):
 
         try:
-
             # Skip Connections with no data transferred
             if connection.clientbytes + connection.serverbytes < 1:
                 return
@@ -112,7 +111,7 @@ Example:
                 outdata += struct.pack('I', i)
 
             for i in connection.blobs:
-                packetdata = i.data()
+                packetdata = i.data(padding="\x00")
                 packetout = i.direction[0] + struct.pack('I', len(packetdata)) + packetdata
                 outdata += packetout
             self.dumpfiles.write(outdata)
