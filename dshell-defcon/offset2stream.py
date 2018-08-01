@@ -250,7 +250,7 @@ except:
 def out_end_pythondiff(*args):
     print >>_out_file, 'if len(sys.argv) >= 4 and "r" in sys.argv[3]:'
     print >>_out_file, '    data = r.recvrepeat(1)'
-    print >>_out_file, '    print ("\\033[33m{}\\033[0m".format(repr(data)) )'
+    print >>_out_file, '    print ("\\033[33m{}\\033[0m".format(repr(data)[1:-1]) )'
     print >>_out_file, 'if len(sys.argv) >= 4 and "i" in sys.argv[3]:'
     print >>_out_file, '    r.interactive()'
     if _out_file != sys.stdout:
@@ -258,7 +258,7 @@ def out_end_pythondiff(*args):
 
 def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
     if direction == 'cs':
-        print >>_out_file, 'print("\\033[36m{}\\033[0m")'.format(repr(data))
+        print >>_out_file, 'print("\\033[36m{}\\033[0m")'.format(repr(data)[1:-1])
         print >>_out_file, 'r.send({})'.format((repr(data)))
     else:
         print >>_out_file, '__content = r.recvrepeat(timeout = timeout)'
