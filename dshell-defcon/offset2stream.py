@@ -164,7 +164,7 @@ def attack(host, port):
             print("\033[36m{}\033[0m").format(repr(s))
             r.send(s)
     #r.interactive()
-    return r.recv(0x1000)
+    return r.recvrepeat(5)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
