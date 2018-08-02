@@ -164,7 +164,7 @@ def attack(host, port):
             print("\033[36m{}\033[0m").format(repr(s))
             r.send(s)
     #r.interactive()
-    return r.recvall()
+    return r.recv(0x1000)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -260,7 +260,7 @@ def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
     if direction == 'cs':
         print >>_out_file, 'data = {}'.format(repr(data))
         print >>_out_file, 'print("\\033[36m{}\\033[0m".format(data))'
-        print >>_out_file, 'r.send({})'.format((repr(data)))
+        print >>_out_file, 'r.send(data)'
     else:
         print >>_out_file, '__content = r.recvrepeat(timeout = timeout)'
         print >>_out_file, '__expected =  {}'.format(repr(data))
