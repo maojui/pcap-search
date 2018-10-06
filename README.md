@@ -1,6 +1,6 @@
 # pcap-search docker
 
-Deploy MaskRay/pcap-search in a docker container.
+Deploy Maojui/pcap-search in a docker container.
 
 ## Build
 ```bash
@@ -12,10 +12,12 @@ cd docker
 
 ```bash
 cd docker
-./run_docker.sh <the pcap directory you want to mount>
+./run_docker.sh [absolute path to pcap dir to be mounted] [port to mounted]
 ```
-This will create a container with the name `pcap0`, and mount the pcap directory to `/mnt/pcap` inside the docker  
-Now you can open the browser and connect to `<HOST>:4568` for pcap searching
+This will mount the pcap directory to `/mnt/pcap` inside the docker  
+Now you can open the browser and connect to `<HOST>:port` for pcap searching
+
+If you leave port blank, the default is mounted at 4568.
 
 ## Usage  
 ### Notice
