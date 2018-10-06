@@ -1,6 +1,6 @@
 # pcap-search docker
 
-Deploy Maojui/pcap-search in a docker container.
+Deploy MaskRay/pcap-search in a docker container.
 
 ## Build
 ```bash
@@ -43,6 +43,12 @@ If you leave port blank, the default is mounted at 4568.
 ![context img](/img/1.png?raw=true)  
 ### View  
 ![context img](/img/2.PNG?raw=true)  
-* The `Python Simple` & `Python Diff` is a simple python script for replay attack, base on [zio](https://github.com/zTrix/zio)
+* The `Python Simple` & `Python Diff` is a simple python script for replay attack, base on [pwntools](https://github.com/arthaud/python3-pwntools)
 
+### pwntools installation 
 
+```bash
+apt-get update
+apt-get install python3 python3-dev python3-pip git
+pip3 install --upgrade git+https://github.com/arthaud/python3-pwntools.git
+```
