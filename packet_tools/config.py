@@ -11,6 +11,7 @@ EXTENTION = '.cap' # for pcap-search parser
 
 challenge_port = {
     10104 : 'applestore',
+    8000 : 'rcg'
 }
 
 STREAM_OUTPUT_DIR = 'pcap'
@@ -32,4 +33,4 @@ MAXIMUM_ACCEPT_PACKET_SIZE = 100 * MB
 FILTER_INPUT = STREAM_OUTPUT_DIR
 FILTER_OUTPUT = 'pcap/filter'
 
-BLACK_LIST = [b'AAAAAAAAAA']
+BLACK_LIST = []
