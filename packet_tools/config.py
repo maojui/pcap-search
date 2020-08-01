@@ -1,5 +1,5 @@
 
-IP = '10.0.12.1' # service ip
+IP = '10.0.1.1' # service ip
 MASK = 8         # bits
 
 EXTENTION = '.cap' # for pcap-search parser
@@ -10,8 +10,7 @@ EXTENTION = '.cap' # for pcap-search parser
 ############################################################################################
 
 challenge_port = {
-    10104 : 'applestore',
-    8000 : 'rcg'
+    2121 : 'blackjack'
 }
 
 STREAM_OUTPUT_DIR = 'pcap'

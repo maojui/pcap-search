@@ -102,8 +102,8 @@ def extract(filename):
     for ts, pkt in dpkt.pcap.Reader(open(filename,'rb')):
 
         eth = dpkt.ethernet.Ethernet(pkt) 
-        if eth.type & dpkt.ethernet.ETH_TYPE_IP :
-            continue
+        # if eth.type & dpkt.ethernet.ETH_TYPE_IP :
+        #     continue
         # print(eth.type,dpkt.ethernet.ETH_TYPE_IP)
 
         ip = eth.data
@@ -122,16 +122,24 @@ def extract(filename):
                 if syn_flag & ~ack_flag == 1 :
                     Rport[key] = temp + 1
                     start = True
-                    # print(start)
 
                 Rnum = str(Rport[key])
                 key = hashlib.md5( (key+Rnum).encode('utf-8') ).hexdigest()
                 streams[key] = streams.get(key,stream(filename, tcp.sport, tcp.dport, Rnum, start))
 
             else :
-                streams[key] = streams.get(key,stream(tcp.sport, tcp.dport, '1', False))
-
+                streams[key] = streams.get(key,stream(filename, tcp.sport, tcp.dport, '1', False))
             streams[key].add_content(tcp.data, ts, pkt, ip.dst)
+            
+        else :
+            if ip.p == dpkt.ip.IP_PROTO_UDP :                
+                udp = ip.data
+                # Pass the IP addresses, source port, destination port, and data back to the caller.
+                # yield ( ip.src, udp.sport, ip.dst, udp.dport, udp.data, ip.v)
+                key = hash(udp.sport,udp.dport)
+                streams[key] = streams.get(key,stream(filename, udp.sport, udp.dport, '1', False))
+            streams[key].add_content(udp.data, ts, pkt, ip.dst)
+        
 
     for ss in streams.values():
         
