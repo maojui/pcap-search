@@ -16,14 +16,14 @@ CHALLENGE_SPLIT_BY_IP = True
 ############################################################################################
 # If challenge split by IP
 challenge_ip = {
-    '10.0.2.1' : 'blackjack',
-    '10.0.2.2' : 'hitcon-ftp',
-    '10.0.2.4' : 'stupid-robot',
-    '10.0.2.5' : 'noobieweb'
+    '10.0.1.1' : 'blackjack',
+    '10.0.1.2' : 'hitcon-ftp',
+    '10.0.1.4' : 'stupid-robot',
+    '10.0.1.5' : 'noobieweb'
 }
 
 
-STREAM_OUTPUT_DIR = 'pcap'
+STREAM_OUTPUT_DIR = '/home/public/extracted'
 
 # Saving time is tested by HITCON CTF 2018 Final packet
 CONSIDER_ONLY_INPUT = True      # Some random output (E.G. address leak) will be ignore.    (save 3s)
