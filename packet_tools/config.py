@@ -1,7 +1,3 @@
-
-IP = '10.0.1.1' # service ip
-MASK = 8         # bits
-
 EXTENTION = '.cap' # for pcap-search parser
 
 ############################################################################################
@@ -9,9 +5,23 @@ EXTENTION = '.cap' # for pcap-search parser
 # Usage : python3 stream.py [.pcap file]
 ############################################################################################
 
-challenge_port = {
-    2121 : 'blackjack'
+IP = '10.0.1.1' # service ip
+MASK = 8         # bits  : 8 -> 10.0.1.x
+CHALLENGE_SPLIT_BY_IP = True
+# If challenge split by port
+# challenge_port = {
+#     2121 : 'blackjack',
+#     5566 : 'hitcon-ftp'
+# }
+############################################################################################
+# If challenge split by IP
+challenge_ip = {
+    '10.0.2.1' : 'blackjack',
+    '10.0.2.2' : 'hitcon-ftp',
+    '10.0.2.4' : 'stupid-robot',
+    '10.0.2.5' : 'noobieweb'
 }
+
 
 STREAM_OUTPUT_DIR = 'pcap'
 

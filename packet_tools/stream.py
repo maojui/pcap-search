@@ -10,7 +10,16 @@ import os, sys
 import hashlib
 
 hash = lambda sport, dport: hashlib.md5('-'.join(map(str,sorted([sport,dport]))).encode('utf-8')).hexdigest()
-masked = lambda _IP : ''.join(list(map(lambda x : bin(x)[2:].rjust(8,'0'),_IP)))[:-MASK] + MASK * '0'
+
+inet_to_ip = lambda _IP : '.'.join(map(str,map(int,_IP)))
+
+if CHALLENGE_SPLIT_BY_IP :
+    # challenge split by ip
+    masked = lambda _IP : ''.join(list(map(lambda x : bin(x)[2:].rjust(8,'0'),_IP)))[:-MASK] + MASK * '0'
+else :
+    # challenge split by port
+    masked = lambda _IP : ''.join(list(map(lambda x : bin(x)[2:].rjust(8,'0'),_IP)))[:-MASK] + MASK * '0'
+
 
 my_ip = map(int,IP.split('.'))
 my_ip = masked(my_ip)
@@ -19,13 +28,16 @@ class stream:
     
     Count = 1
     
-    def __init__(self, pcap, source, destination, num, start):
+    def __init__(self, pcap, source, destination, num, start, udp=False):
         self.pcap = pcap
         self.pcap_filename = self.pcap.rstrip('.pcap').split("/")[-1]
         os.makedirs(os.path.join(STREAM_OUTPUT_DIR),exist_ok=True)
-        self.sport = source         # from attacker's or my random port out
-        self.dport = destination    # vulnerable port connect
+        self.src = source[0]
+        self.sport = source[1]         # from attacker's or my random port out
+        self.dst = destination[0]
+        self.dport = destination[1]    # vulnerable port connect
         self.count = stream.Count
+        self.udp = udp
         self.num = num
         self.ts = []
         self.pkt = []
@@ -36,10 +48,9 @@ class stream:
     # save the content to each stream class.
     def add_content(self, data, ts, pkt, dst):
         self.ts.append( ts )
-        self.pkt.append( bytes(pkt) )
+        self.pkt.append(bytes(pkt))
         dst = masked(map(int,dst))
-        if dst == my_ip and CONSIDER_ONLY_INPUT == True :
-        
+        if dst == my_ip or self.udp :
             try:
                 request = dpkt.http.Request(data)
                 data = pickle.dumps(request)
@@ -71,19 +82,32 @@ class stream:
 
         if self.start :
 
-            if self.dport in challenge_port.keys() :  # filter my attack
+            if CHALLENGE_SPLIT_BY_IP and self.dst in challenge_ip :
+                
+                # IP Save
+                filename_path = '/'.join(map(str,[STREAM_OUTPUT_DIR,challenge_ip[self.dst],self.pcap_filename,""]))
+                os.makedirs(os.path.join(filename_path),exist_ok=True)
+
+            elif not CHALLENGE_SPLIT_BY_IP and self.dport in challenge_port :  # filter my attack
+                
                 # Save in challenge/port
                 filename_path = '/'.join(map(str,[STREAM_OUTPUT_DIR,challenge_port[self.dport],self.pcap_filename,""]))
                 os.makedirs(os.path.join(filename_path),exist_ok=True)
+
             else :
-                filename_path = '/'.join(map(str,[STREAM_OUTPUT_DIR,str('backdoor?'),self.pcap_filename,""]))
+
+                filename_path = '/'.join(map(str,[STREAM_OUTPUT_DIR,str('backdoor?') + self.dst,self.pcap_filename,""]))
                 os.makedirs(os.path.join(filename_path),exist_ok=True)
+
         else :
+
             filename_path = '/'.join(map(str,[STREAM_OUTPUT_DIR,'incomplete',self.pcap_filename,""]))
             os.makedirs(os.path.join(filename_path),exist_ok=True)
-            
+        
+        if self.udp:
+            print( os.path.join("".join([filename_path, str(self.sport) ,'_' + self.num,'.cap'])))
 
-        with open( os.path.join("".join([filename_path, str(self.sport) ,'_'+self.num,'.cap'])),'wb') as fileoutput :
+        with open( os.path.join("".join([filename_path, str(self.sport) ,'_' + self.num,'.cap'])),'wb') as fileoutput :
             
             writer = dpkt.pcap.Writer(fileoutput, nano=False)
             for i in range(len(self.ts)):
@@ -101,7 +125,8 @@ def extract(filename):
     
     for ts, pkt in dpkt.pcap.Reader(open(filename,'rb')):
 
-        eth = dpkt.ethernet.Ethernet(pkt) 
+        eth = dpkt.ethernet.Ethernet(pkt)
+
         # if eth.type & dpkt.ethernet.ETH_TYPE_IP :
         #     continue
         # print(eth.type,dpkt.ethernet.ETH_TYPE_IP)
@@ -110,7 +135,9 @@ def extract(filename):
         if ip.p == dpkt.ip.IP_PROTO_TCP : 
             
             tcp = ip.data
-            key = hash(tcp.sport,tcp.dport)
+            source = ( inet_to_ip(ip.src), tcp.sport)
+            dest = ( inet_to_ip(ip.dst), tcp.dport)
+            key = hash(source,dest)
 
             if REPEATED_PORT_DETECT :
                 syn_flag = ( tcp.flags & dpkt.tcp.TH_SYN ) != 0
@@ -125,28 +152,32 @@ def extract(filename):
 
                 Rnum = str(Rport[key])
                 key = hashlib.md5( (key+Rnum).encode('utf-8') ).hexdigest()
-                streams[key] = streams.get(key,stream(filename, tcp.sport, tcp.dport, Rnum, start))
+                streams[key] = streams.get(key, stream(filename, source, dest, Rnum, start))
 
             else :
-                streams[key] = streams.get(key,stream(filename, tcp.sport, tcp.dport, '1', False))
+
+                streams[key] = streams.get(key, stream(filename, source, dest, '1', False))
+
             streams[key].add_content(tcp.data, ts, pkt, ip.dst)
             
         else :
             if ip.p == dpkt.ip.IP_PROTO_UDP :                
                 udp = ip.data
+
+                source = ( inet_to_ip(ip.src), udp.sport)
+                dest = ( inet_to_ip(ip.dst), udp.dport)
+                key = hash(source, dest)
                 # Pass the IP addresses, source port, destination port, and data back to the caller.
                 # yield ( ip.src, udp.sport, ip.dst, udp.dport, udp.data, ip.v)
-                key = hash(udp.sport,udp.dport)
-                streams[key] = streams.get(key,stream(filename, udp.sport, udp.dport, '1', False))
+                streams[key] = streams.get(key, stream(filename, source, dest, '1', True, udp=True))
+
             streams[key].add_content(udp.data, ts, pkt, ip.dst)
         
 
     for ss in streams.values():
         
         digest = ss.gethash()
-        
         if REPEATED_PACKET_DETECT :
-            
             if not Repeated.get(digest,False) :
                 Repeated[digest] = True
                 ss.save()
