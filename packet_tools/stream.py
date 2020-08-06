@@ -74,8 +74,10 @@ class stream:
         if not IGNORE_SIZE:
             
             size_cal = 0
+
             for pkt in self.pkt :
                 size_cal += sys.getsizeof(pkt)
+                
             if size_cal > MAXIMUM_ACCEPT_PACKET_SIZE :
                 print("too big")
                 return
