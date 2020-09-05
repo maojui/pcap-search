@@ -1,3 +1,7 @@
 #!/usr/bin/env sh
 
-docker exec -it pcap0 /bin/bash
+# access pcap-search container with /bin/bash
+
+name=${1:-pcap0}
+echo "Accessing $name..."
+docker exec -it $name /bin/bash

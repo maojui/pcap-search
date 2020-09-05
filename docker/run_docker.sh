@@ -1,21 +1,22 @@
 #!/usr/bin/env sh
 
-GREEN='\033[0;32m'
+# your host IP
+work_host=10.217.0.1
 
-if [ "$#" -ne 1 ] && [ "$#" -ne 2 ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-    echo "Usage: ./run_docker.sh [absolute path to pcap dir to be mounted] [port to mounted]"
+if [ "$#" -lt 1 ]; then
+    echo "\nUsage: ./run_docker.sh [pcap dir to be mounted] [port] [name]"
+    echo "\nDefault value:"
+    echo "    port : 8000"
+    echo "    name : pcap0"
     exit 1
 fi
 
-if [ -d $1 ] && [ $2 ] 
-
-then
-    docker run -d -v $1:/mnt/pcap -p $2:4568 pcap-search;
-    echo "pcap-search started: $GREEN<http://localhost:$2>";
-elif [ -d $1 ] 
-then
-    docker run -d -v $1:/mnt/pcap -p 4568:4568 pcap-search
-    echo "pcap-search started: $GREEN<http://localhost:4568>"
+if [ -d "$1" ]; then
+    port=${2:-8000}
+    name=${3:-pcap0}
+    echo "Running pcap-search as $name @ port $port"
+    #docker run --cpus=8 --memory=16G --net=isolated -d -v $1:/mnt/pcap -p $work_host:$port:4568 --name "$name" pcap-search
+    docker run -d -v $1:/mnt/pcap -p $port:4568 --name "$name" pcap-search
 else
-    echo "Invalid path & port: [path [port]]"
+    echo "Invalid path: $1"
 fi

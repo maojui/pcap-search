@@ -15,7 +15,6 @@ import tempfile
 import traceback
 import util
 import zipfile
-import dpkt
 try:
     import pcap
 except ImportError:
@@ -886,7 +885,19 @@ def main(*largs, **kwargs):
                 decoder.preFile()
 
                 try:
-                    for ts, pkt in dpkt.pcap.Reader(open(pcapfile,'rb')):
+                    if not pcap:
+                        raise NotImplementedError(
+                            "pcap support not implemented")
+                    decoder.capture = pcap.pcap(pcapfile)
+                    if decoder.filter:
+                        decoder.capture.setfilter(decoder.filter)
+                    while not options.count or decoder.count < options.count:
+                        try:
+                            # read next packet and break on EOF
+                            ts, pkt = decoder.capture.next()
+                        except:
+                            break  # no data
+                    # for ts, pkt in dpkt.pcap.Reader(open(pcapfile,'rb')): # someday we may need this
                         decoder.decode(ts, pkt)
                 except KeyboardInterrupt:
                     raise

@@ -4,6 +4,72 @@
   <meta charset="UTF-8">
   <title>Search</title>
   <style>
+ /* The switch - the box around the slider */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 150px;
+    height: 30px;
+  }
+  /* Hide default HTML checkbox */
+  .switch input {display:none;}
+  /* The slider */
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+  }
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+  }
+  .slider:after
+  {
+   content:'REGEX OFF';
+   color: white;
+   display: block;
+   position: absolute;
+   transform: translate(-50%,-50%);
+   top: 50%;
+   left: 50%;
+   font-size: 12px;
+   font-family: Verdana, sans-serif;
+  }
+  input:checked + .slider:after
+  {  
+    content:'REGEX ON';
+  }
+  input:checked + .slider {
+    background-color: orange;
+  }
+  input:focus + .slider {
+    box-shadow: 0 0 1px orange;
+  }
+  input:checked + .slider:before {
+    -webkit-transform: translateX(26px);
+    -ms-transform: translateX(26px);
+    transform: translateX(123px);
+  }
+  /* Rounded sliders */
+  .slider.round {
+    border-radius: 24px;
+  }
+  .slider.round:before {
+    border-radius: 50%;
+  } 
   .hightlight{
     color: #EF4836;
     background: #F1A9A0;
@@ -79,11 +145,11 @@
   code .right{
     background-color: #D0FFBF;
   }
-  code.hex div:nth-child(2n),code.repr div:nth-child(2n),code.str div:nth-child(2n){
-    background-color: #dfd;
-  }
-  code.hex div:nth-child(2n+1), code.repr div:nth-child(2n+1), code.str div:nth-child(2n+1){
+  .dir_cs{
     background-color: #FFA3A3;
+  }
+  .dir_sc{
+    background-color: #dfd;
   }
   code.python div, code.c div{
     background-color: #ddd;
@@ -144,6 +210,11 @@
               </select>
             </h5>
             <div class="ui search">
+              <label class="switch">
+	        <input id='isregex' type="checkbox">
+		<span class="slider round"></span>
+	      </label>
+              <img src="/loading_apple.gif" id="load_gif" height="30" width="30" style="visibility:hidden" />
               <div class="ui icon fluid input">
                 <input type="text" class="prompt" placeholder="\\n \\r \\0 \\377 \\x12 for escaped char" onfocus={small} onkeypress={submit}>
                 <i class=" search icon" onclick={submit_click}></i>
@@ -163,21 +234,25 @@
               <a class="item" data-tab="str">String</a>
               <a class="item" data-tab="c">C</a>
               <a class="item" data-tab="python_simple">Python Simple</a>
+              <a class="item" data-tab="python_simple_zigzag">Python Simple (Zig Zag)</a>
               <a class="item" data-tab="python_diff">Python Diff</a>
+              <a class="item" data-tab="python_diff_zigzag">Python Diff (Zig Zag)</a>
+              <a class="item" data-tab="json">JSON</a>
             </div>
             <div class="ui bottom attached active tab segment" data-tab="hex">
               <code class="hex">
-                <div each={i,j in hex}>{i}</div>
+                <div class={dir_cs: i[0] == 0, dir_sc: i[0] == 1} each={i, j in parse_res_dir(this.hex)}>{i[1]}</div>
               </code>
             </div>
             <div class="ui bottom attached tab segment" data-tab="repr">
               <code class="repr">
-                <div each={i,j in repr}>{i}</div>
+                <div class={dir_cs: i[0] == 0, dir_sc: i[0] == 1} each={i, j in parse_res_dir(this.repr)}>{i[1]}</div>
               </code>
             </div>
             <div class="ui bottom attached tab segment" data-tab="str">
               <code class="str">
-                <div each={i,j in str}>{i}</div>
+                <div class={dir_cs: i[0] == 0, dir_sc: i[0] == 1} each={i, j in parse_res_dir(this.str)}>{i[1]}</div>
+              </code>
               </code>
             </div>
             <div class="ui bottom attached tab segment" data-tab="c">
@@ -193,6 +268,21 @@
             <div class="ui bottom attached tab segment" data-tab="python_diff">
               <code class="python">
                   <div>{python_diff}</div>
+              </code>
+            </div>
+            <div class="ui bottom attached tab segment" data-tab="python_simple_zigzag">
+              <code class="python">
+                  <div>{python_simple_zigzag}</div>
+              </code>
+            </div>
+            <div class="ui bottom attached tab segment" data-tab="python_diff_zigzag">
+              <code class="python">
+                  <div>{python_diff_zigzag}</div>
+              </code>
+            </div>
+            <div class="ui bottom attached tab segment" data-tab="json">
+              <code class="json">
+                  <div>{json}</div>
               </code>
             </div>
           </div>
@@ -328,6 +418,9 @@
         this.str = '';
         this.python_simple = '';
         this.python_diff = ""
+        this.python_simple_zigzag = '';
+        this.python_diff_zigzag = ""
+        this.json = ""
         // fetch the data
         this.loading = true
         this.update() // animate
@@ -358,6 +451,18 @@
           this.python_diff = response
           this.update()
         }.bind(this), 'text')
+        $.get(this.download(file, offset, 'pythonsimple_zigzag'), {}, function(response){
+          this.python_simple_zigzag = response
+          this.update()
+        }.bind(this), 'text')
+        $.get(this.download(file, offset, 'pythondiff_zigzag'), {}, function(response){
+          this.python_diff_zigzag = response
+          this.update()
+        }.bind(this), 'text')
+        $.get(this.download(file, offset, 'json'), {}, function(response){
+          this.json = response
+          this.update()
+        }.bind(this), 'text')
       }
       submit(e){
         if(e.which == 13){
@@ -384,21 +489,50 @@
           this.pages = {}
           this.page = 0
         }
+        if( typeof(keyword) == "undefined" ||
+            keyword.length == 0 )
+          return;
+        
         var page = page == undefined ? 0 : page;
         var service=this.select_service.value;
-        $.get('/api/search', {page: page, q:keyword, service:service},function(response){
-          // console.log(response.results);
-          this.pages[page] = response.results
-          for(var key in this.pages[page]){
-            this.pages[page][key].map(function(x){
-              x.epoch = new Date(x.epoch * 1000).toLocaleString("ja-JP")
-              return x
-            })
-          }
-          this.keyword = response.query // use the server side query to avoid different escaped type
-          this.page = page
-          this.update()
-        }.bind(this), 'json')
+        var is_regex = document.getElementById('isregex').checked;
+        document.getElementById('load_gif').style.visibility = "visible";
+        if(is_regex)
+        {
+          this.isREGEX = true;
+          $.get('/api/search_regex', {page: page, q:keyword, service:service},function(response){
+            // console.log(response.results);
+            this.pages[page] = response.results
+            for(var key in this.pages[page]){
+              this.pages[page][key].map(function(x){
+                x.epoch = new Date(x.epoch * 1000).toLocaleString("ja-JP")
+                return x
+              })
+            }
+            this.keyword = response.query // use the server side query to avoid different escaped type
+            this.page = page
+            this.update()
+            document.getElementById('load_gif').style.visibility = "hidden";
+          }.bind(this), 'json')
+        }
+        else
+        {
+          this.isREGEX = false;
+          $.get('/api/search', {page: page, q:keyword, service:service},function(response){
+            // console.log(response.results);
+            this.pages[page] = response.results
+            for(var key in this.pages[page]){
+              this.pages[page][key].map(function(x){
+                x.epoch = new Date(x.epoch * 1000).toLocaleString("ja-JP")
+                return x
+              })
+            }
+            this.keyword = response.query // use the server side query to avoid different escaped type
+            this.page = page
+            this.update()
+            document.getElementById('load_gif').style.visibility = "hidden";
+          }.bind(this), 'json')
+        }
       }
       next_page(){
         if(!this.pages[this.page + 1]){
@@ -410,8 +544,22 @@
           this.search(this.keyword, this.page - 1)
         }
       }
+      parse_res_dir(res){
+        ret = [];  
+        for (var i = 0, len = res.length; i < len; i++) {
+          text = res[i];
+          if (text.indexOf("-->cs") !== -1) { // dir = cs
+            text = text.replace("-->cs", "--> ");
+            ret.push([0, text]);
+          }
+          else if (text.indexOf("-->sc") !== -1) { // dir = sc
+            text = text.replace("-->sc", "--> ");
+            ret.push([1, text]);
+          }
+        }
+        return ret;
+      }
       find(text){
-        var ret = [], i = 0, head= 0;
         if(this.keyword.length == 0){
           return [[0,text]]
         }
@@ -419,14 +567,33 @@
         while ( (result = regex.exec(text)) ) {
           var dir;
           dir = result[1] == "←" ? 2 : 3;
-          if(result[2].indexOf(this.keyword) > -1){
-            result[2].split(this.keyword).forEach(function(word){
-              indices.push([dir, word])
-              indices.push([1, this.keyword])
-            }.bind(this))
-            indices.pop()
+          if(this.isREGEX){
+            var search_re = new RegExp(this.keyword, 'g');
+            // check if the search string is in the result
+            if (result[2].match(search_re)){
+	      next_start = 0;
+              // split result base on the matched regex string
+              while ( (matched_str = search_re.exec(result[2])) ) {
+                prev_word = result[2].substring(next_start, matched_str.index); // string before the matched regex string
+                search_re.lastIndex = matched_str.index + matched_str[0].length; // set the next search start point
+                next_start = search_re.lastIndex;
+                indices.push([dir, prev_word]); // set the class before the matched string
+                indices.push([1, matched_str]); // highlight matched string
+              }
+              indices.push([dir, result[2].substring(next_start, result[2].length)]); // push the last string
+            }else{
+              indices.push([dir, result[0]])
+            }
           }else{
-            indices.push([dir, result[0]])
+            if(result[2].indexOf(this.keyword) > -1){
+              result[2].split(this.keyword).forEach(function(word){
+                indices.push([dir, word])
+                indices.push([1, this.keyword])
+              }.bind(this))
+              indices.pop()
+            }else{
+              indices.push([dir, result[0]])
+            }
           }
         }
         return indices

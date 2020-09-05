@@ -16,7 +16,11 @@ len_conns = list(struct.unpack('I' * total_conns, ff.read(4 * total_conns)))
 
 _out_file = sys.stdout
 _offset_in_data = False
+_idir = {'sc': 0, 'cs': 1}
 
+cur_dir = None
+cur_data = None
+is_last_packet = False
 
 def out_begin_locconn(_a, _b, ff):
     print ff.tell(),
@@ -63,7 +67,7 @@ def out_loc(srcip, srcport, destip, dstport, data, direction, ff):
 
 def out_repr(srcip, srcport, destip, dstport, data, direction, ff):
     print >>_out_file, socket.inet_ntoa(struct.pack('I', srcip)) + ':' + str(srcport),
-    print >>_out_file, ' --> ',
+    print >>_out_file, ' -->{}'.format(direction),
     print >>_out_file, socket.inet_ntoa(struct.pack('I', destip)) + ':' + str(dstport),
     print >>_out_file, '(%d bytes)' % len(data)
     print >>_out_file, repr(data)
@@ -72,7 +76,7 @@ def out_repr(srcip, srcport, destip, dstport, data, direction, ff):
 
 def out_hex(srcip, srcport, destip, dstport, data, direction, ff):
     print >>_out_file, socket.inet_ntoa(struct.pack('I', srcip)) + ':' + str(srcport),
-    print >>_out_file, ' --> ',
+    print >>_out_file, ' -->{}'.format(direction),
     print >>_out_file, socket.inet_ntoa(struct.pack('I', destip)) + ':' + str(dstport),
     print >>_out_file, '(%d bytes)' % len(data)
     enc_data = data.encode('hex')
@@ -82,7 +86,7 @@ def out_hex(srcip, srcport, destip, dstport, data, direction, ff):
 
 def out_str(srcip, srcport, destip, dstport, data, direction, ff):
     print >>_out_file, socket.inet_ntoa(struct.pack('I', srcip)) + ':' + str(srcport),
-    print >>_out_file, ' --> ',
+    print >>_out_file, ' -->{}'.format(direction),
     print >>_out_file, socket.inet_ntoa(struct.pack('I', destip)) + ':' + str(dstport),
     print >>_out_file, '(%d bytes)' % len(data)
     print >>_out_file, str(data)
@@ -125,6 +129,9 @@ def out_begin_pythonsimple(*args):
     print >>_out_file, r"""
 import os, sys, string, random
 from pwn import *
+
+DO_RECV, DO_SEND = 0, 1
+
 try:
     from termcolor import colored
 except:
@@ -148,7 +155,7 @@ except:
         return text
 """
     print >>_out_file, 'seq = []'
-    print >>_out_file, '# 1 for client, 0 for server'
+    print >>_out_file, '# 1 for SEND, 0 for RECV'
 
 
 def out_end_pythonsimple(*args):
@@ -156,15 +163,15 @@ def out_end_pythonsimple(*args):
     print >>_out_file, r"""
 def attack(host, port):
     r = remote(host, port, timeout=40)
-    for c, s in seq:
-        if c == 0:
-            data = r.recvrepeat(1)
-            print("\033[33m{}\033[0m").format(repr(data))
-        else:
-            print("\033[36m{}\033[0m").format(repr(s))
+    for action, s in seq:
+        if action == DO_RECV:
+            data = r.recvuntil(s)
+            print("RECV: \033[33m{}\033[0m").format(repr(data))
+        elif action == DO_SEND:
+            print("SEND: \033[36m{}\033[0m").format(repr(s))
             r.send(s)
     #r.interactive()
-    return r.recvrepeat(5)
+    return r.recv(0x1000)
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
@@ -191,11 +198,27 @@ if __name__ == '__main__':
         _out_file.close()
 
 def out_pythonsimple(srcip, srcport, destip, dstport, data, direction, ff):
-    _idir = {'sc': 0, 'cs': 1}
+    global _idir
     idir = _idir[direction]
     print >>_out_file, "seq.append((%d, %r))" % (idir, data)
 
+def out_pythonsimple_zigzag(srcip, srcport, destip, dstport, data, direction, ff):
+    global _idir, cur_dir, cur_data
+    global is_last_packet
+    idir = _idir[direction]
 
+    if cur_dir == None: # first packet
+        cur_dir = idir
+        cur_data = data
+    elif cur_dir == idir: # same direction
+        cur_data += data
+    else: # change direction, append the previous sequence
+        print >>_out_file, "seq.append((%d, %r))" % (cur_dir, cur_data)
+        cur_dir = idir # new direction
+        cur_data = data # new data
+
+    if is_last_packet: # last packet, write directly
+        print >>_out_file, "seq.append((%d, %r))" % (cur_dir, cur_data)
 
 def out_begin_pythondiff(*args):
     global _out_file
@@ -227,44 +250,81 @@ except:
 
         text += RESET
         return text
-"""
-    print >>_out_file, 'print "Usage: %s <host> <port> [idr]\\n\\ti: interact at end\\n\\td: diff response and expected response" % (sys.argv[0])'
-    print >>_out_file, 'def diffstr(content, expected):'
-    print >>_out_file, '    import difflib'
-    print >>_out_file, '    differ = difflib.ndiff(expected, content)'
-    print >>_out_file, '    for i in differ:'
-    print >>_out_file, '        text = repr(i[-1])[1:-1]'
-    print >>_out_file, '        if i[0] == " ":'
-    print >>_out_file, '            sys.stdout.write(text)'
-    print >>_out_file, '        if i[0] == "+":'
-    print >>_out_file, '            sys.stdout.write(colored(text, on_color="on_red"))'
-    print >>_out_file, '        if i[0] == "-":'
-    print >>_out_file, '            sys.stdout.write(colored(text, on_color="on_blue"))'
-    print >>_out_file, '    sys.stdout.write("\\n")'
-    print >>_out_file, '    sys.stdout.flush()'
-    print >>_out_file, 'r = remote(sys.argv[1], int(sys.argv[2]))'
-    print >>_out_file, '__content = ""'
 
+def send_data(data):
+    print("="*50)
+    print("SEND: \033[36m{}\033[0m").format(repr(data))
+    r.send(data)
+
+def recv_data(expected, debug):
+    print("="*50)
+    if debug == True:
+        sys.stdout.write("RECV: ")
+        recv_data = r.recvrepeat(timeout = timeout)
+        diffstr(recv_data, expected)
+    else:
+        recv_data = r.recvuntil(expected)
+        print("RECV: \033[33m{}\033[0m").format(repr(recv_data))
+
+def diffstr(content, expected):
+    import difflib
+    differ = difflib.ndiff(expected, content)
+    for i in differ:
+        text = repr(i[-1])[1:-1]
+        if i[0] == " ":
+	    sys.stdout.write(text)
+        if i[0] == "+": # red means "I shoudn\'t recv these bytes"
+	    sys.stdout.write(colored(text, on_color="on_red"))
+        if i[0] == "-": # blue means "I expect to recv these bytes, but I didn\'t see them"
+	    sys.stdout.write(colored(text, on_color="on_blue"))
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+"""
+    print >>_out_file, 'print("Usage: {} <host> <port> [ird]\\n\\ti: interactive at the end\\n\\tr: recv till timeout at the end\\n\\td: show info of diff response and expected response".format(sys.argv[0]))'
+    print >>_out_file, 'print("Diff info example:")'
+    print >>_out_file, 'print("{} : Don\'t expect \\"A\\" to be received but receive it.".format(colored("A", on_color="on_red")))'
+    print >>_out_file, 'print("{} : Expect \\"A\\" to be received but didn\'t receive it.".format(colored("A", on_color="on_blue")))'
+    print >>_out_file, '\nr = remote(sys.argv[1], int(sys.argv[2]))'
+    print >>_out_file, 'debug = True if ( len(sys.argv) >= 4 and "d" in sys.argv[3] ) else False # set the debug level'
 
 def out_end_pythondiff(*args):
-    print >>_out_file, 'if len(sys.argv) >= 4 and "r" in sys.argv[3]:'
-    print >>_out_file, '    data = r.recvrepeat(1)'
+    print >>_out_file, '\nif len(sys.argv) >= 4 and "r" in sys.argv[3]:'
+    print >>_out_file, '    data = r.recv(0x1000)'
     print >>_out_file, '    print ("\\033[33m{}\\033[0m".format(repr(data)) )'
     print >>_out_file, 'if len(sys.argv) >= 4 and "i" in sys.argv[3]:'
     print >>_out_file, '    r.interactive()'
     if _out_file != sys.stdout:
         _out_file.close()
 
-def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
-    if direction == 'cs':
-        print >>_out_file, 'data = {}'.format(repr(data))
-        print >>_out_file, 'print("\\033[36m{}\\033[0m".format(data))'
-        print >>_out_file, 'r.send(data)'
+def write_diff_on_direction(direction, data, prev=False):
+    if prev: direction = direction[::-1]
+    if direction == 'cs': # send ( Client -> Server )
+        print >>_out_file, '\nsend_data({})'.format(repr(data))
     else:
-        print >>_out_file, '__content = r.recvrepeat(timeout = timeout)'
-        print >>_out_file, '__expected =  {}'.format(repr(data))
-        print >>_out_file, 'diffstr(__content, __expected)'
+        print >>_out_file, '\nexpected = {}'.format(repr(data))
+        print >>_out_file, 'recv_data(expected, debug)'
 
+def out_pythondiff(srcip, srcport, destip, dstport, data, direction, ff):
+    write_diff_on_direction(direction, data)
+
+def out_pythondiff_zigzag(srcip, srcport, destip, dstport, data, direction, ff):
+    global cur_dir, cur_data
+    global is_last_packet
+    idir = _idir[direction]
+
+    if cur_dir == None: # first packet
+        cur_dir = idir
+        cur_data = data
+    elif cur_dir == idir: # same direction
+        cur_data += data
+    else: # change direction, append the previous sequence
+        write_diff_on_direction(direction, cur_data, prev=True)
+        cur_dir = idir # new direction
+        cur_data = data # new data
+
+    if is_last_packet: # last packet, write directly
+        write_diff_on_direction(direction, cur_data)
 
 def out_begin_pcap(_pkts, timestamp, *args):
     import dpkt
@@ -287,12 +347,32 @@ def out_begin_pcap(_pkts, timestamp, *args):
     assert(pkts == [])
     writer.close()
 
+def out_begin_json(*args):
+    global _out
+    _out = dict(timestamp=args[1], conversation=[])
+
+import base64
+def out_json(srcip, srcport, dstip, dstport, data, direction, ff):
+    _out['conversation'].append(dict(
+        srcip=socket.inet_ntoa(struct.pack('I', srcip)),
+        srcport=srcport,
+        dstip=socket.inet_ntoa(struct.pack('I', dstip)),
+        dstport=dstport,
+        dir=direction,
+        data=base64.b64encode(data),
+    ))
+
+def out_end_json(*args):
+    import json
+    with open(sys.argv[5], 'w') as _out_file:
+        _out_file.write(json.dumps(_out, indent=2, ensure_ascii=False))
 
 
 
 out = eval('out_' + sys.argv[3])
-out_begin = eval('out_begin_' + sys.argv[3])
-out_end = eval('out_end_' + sys.argv[3])
+begin_end_func = sys.argv[3] if "_zigzag" not in sys.argv[3] else sys.argv[3][:-7:]
+out_begin = eval('out_begin_' + begin_end_func)
+out_end = eval('out_end_' + begin_end_func)
 
 current_offset = 0
 found = False
@@ -304,7 +384,10 @@ for i in len_conns:
         cnt_pkt = struct.unpack('I', ff.read(4))[0]
         pkts_id = struct.unpack('I' * cnt_pkt, ff.read(4 * cnt_pkt))
         out_begin(pkts_id, timestamp, ff)
-        for i in xrange(len_pkt):
+        cur_dir = None
+        is_last_packet = False
+        for cur_packet in xrange(len_pkt):
+            if cur_packet == len_pkt - 1: is_last_packet = True
             direction = ff.read(1)
             len_data = struct.unpack('I', ff.read(4))[0]
             data = ff.read(len_data)

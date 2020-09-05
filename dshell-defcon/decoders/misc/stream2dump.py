@@ -48,6 +48,7 @@ Example:
                                        'hex': {'action': 'store_true', 'help': 'two-column hex/ascii output'},
                                        'time': {'action': 'store_true', 'help': 'include timestamp for each blob'},
                                        'encoding': {'type': 'string', 'help': 'attempt to interpret text as encoded with specified schema'},
+                                       'padding': {'type': 'string', 'help': 'padding character for the missing bytes. Format: 0x??'},
                                        'outfiles': {'type': 'string', 'help': 'output files'},
                                    }
                                    )
@@ -82,6 +83,20 @@ Example:
         self.dumpfiles.write(struct.pack('I', len(self.connlen)))
         self.dumpfiles.close()
 
+    def check_padding(self):
+        ret = ''
+        if self.padding != None: # padding is set
+	    import re
+	    patt = r"0x[0-9a-f][0-9a-f]"
+	    if re.match(patt, self.padding) != None: # valid padding format
+	        tmp = re.match(patt, self.padding).group(0)
+                ret = tmp.replace("0x", "").decode('hex')
+	    else: # invalid padding format
+	       print("[!] Invalid padding format: {}".format(repr(self.padding)))
+	       print("[!] It should be: 0x??\n")
+	       exit(1)
+        return ret
+
     def connectionHandler(self, connection):
 
         try:
@@ -111,7 +126,8 @@ Example:
                 outdata += struct.pack('I', i)
 
             for i in connection.blobs:
-                packetdata = i.data(padding="\x00")
+                pad = self.check_padding()
+                packetdata = i.data(padding=pad)
                 packetout = i.direction[0] + struct.pack('I', len(packetdata)) + packetdata
                 outdata += packetout
             self.dumpfiles.write(outdata)
